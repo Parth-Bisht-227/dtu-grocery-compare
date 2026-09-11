@@ -37,3 +37,15 @@ def test_unknown_quantity_is_not_guessed():
 def test_title_normalization_preserves_variant_words_but_removes_formatting():
     assert normalize_title("MAGGI 2-Minute Noodles (71.5 g)") == "maggi 2 minute noodle"
 
+
+def test_title_normalization_removes_only_approved_filler_words():
+    assert (
+        normalize_title("The Noodles Made With Quality Spices Only")
+        == "noodle spice"
+    )
+
+
+def test_title_normalization_preserves_sku_defining_words():
+    title = "Original Classic Salted Unsalted Diet Zero Organic Instant Spicy Maxx"
+
+    assert normalize_title(title) == title.casefold()

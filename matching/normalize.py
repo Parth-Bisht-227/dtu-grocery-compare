@@ -37,6 +37,17 @@ _TOKEN_ALIASES = {
     "chips": "chip",
     "pieces": "piece",
 }
+_FILLER_TOKENS = {
+    "the",
+    "and",
+    "of",
+    "for",
+    "from",
+    "with",
+    "made",
+    "quality",
+    "only",
+}
 
 
 def _normalize_unit(value: Decimal, raw_unit: str) -> tuple[Decimal, str]:
@@ -83,5 +94,4 @@ def normalize_title(title: str) -> str:
     text = _INLINE_QUANTITY_RE.sub(" ", text)
     text = re.sub(r"[^a-z0-9]+", " ", text)
     tokens = (_TOKEN_ALIASES.get(token, token) for token in text.split())
-    return " ".join(tokens)
-
+    return " ".join(token for token in tokens if token not in _FILLER_TOKENS)
