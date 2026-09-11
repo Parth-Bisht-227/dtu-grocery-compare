@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from matching.matcher import match_products
 from models import Product, Provider, SearchOutcome
 from providers.base import ProductProvider
+from relevance import rank_matches, rank_products
 
 
 @dataclass(frozen=True)
@@ -99,6 +100,11 @@ class ComparisonService:
             products.get(Provider.BLINKIT, []),
             products.get(Provider.INSTAMART, []),
         )
+        matches = rank_matches(clean_query, matches)
+        unmatched = {
+            provider: rank_products(clean_query, provider_products)
+            for provider, provider_products in unmatched.items()
+        }
         return SearchOutcome(
             query=clean_query,
             products=products,
@@ -106,4 +112,3 @@ class ComparisonService:
             matches=matches,
             unmatched=unmatched,
         )
-
