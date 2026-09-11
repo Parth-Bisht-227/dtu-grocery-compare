@@ -1,0 +1,6 @@
+playwright>=1.52,<2
+pydantic>=2.11,<3
+rapidfuzz>=3.13,<4
+streamlit>=1.45,<2
+pytest>=8.3,<9
+

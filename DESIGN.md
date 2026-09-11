@@ -1,0 +1,18 @@
+# Design Note — The Great DTU Grocery Race
+
+## Architecture and scope
+
+The app is a local Streamlit UI backed by a small comparison service. On search, the service runs two provider adapters in parallel. Each adapter uses Playwright Chromium to set the delivery location to Delhi Technological University through the provider's public desktop UI, performs a normal search, reads rendered product cards, and converts them into the same validated `Product` model. A deterministic matcher consumes those models; the UI never knows marketplace DOM details. Provider calls are isolated, so a Blinkit failure can still return Instamart listings. Successful `(provider, query, DTU)` results are cached for three minutes and failures for 30 seconds to reduce repeated traffic without presenting prices as fresh for too long.
+
+This architecture is intentionally synchronous and in-process because the assessment has one fixed location, one local user, and no deployment requirement. Playwright is used instead of `requests`/BeautifulSoup because both sites render interactive, location-dependent state in JavaScript; static HTTP parsing would not reproduce what the user sees. Selenium could also drive a browser, but Playwright provides stronger locator/wait primitives, isolated browser contexts, and simple storage-state persistence. Streamlit gives a usable Python-only UI quickly; React/FastAPI would add delivery work without improving the core evaluation areas. No database, queue, LLM, embeddings, or private API is needed.
+
+## Deciding “the same product”
+
+Search relevance is not SKU identity. Every card is first normalized: `500gm -> 500 g`, `0.5 kg -> 500 g`, `1 L -> 1000 ml`, and explicit packs such as `4 x 70 g` retain both pack count and total quantity. Candidate pairs are rejected before fuzzy matching if quantity cannot be parsed, normalized units/totals differ, explicit pack structure differs, the leading brand token differs, recognized variant tokens conflict (for example garlic vs cheese), or no product-family token overlaps. Only surviving candidates receive a RapidFuzz title score; scores below 82 are rejected, then the highest-scoring candidates are paired one-to-one.
+
+The policy deliberately favors false negatives over false positives: failing to compare a possible bargain is less misleading than claiming two different sellable SKUs are equivalent. It breaks down when providers omit pack structure or flavour, use brand aliases, bundle products, or express the same identity with unusually different wording. The small variant vocabulary cannot understand every grocery category. A production system would learn persistent provider SKU mappings from reviewed matches and use GTIN/barcodes where legally and technically available; fuzzy text would remain a fallback, not the identity source.
+
+## Scaling beyond the MVP
+
+For many locations, location becomes part of every price/availability key. I would run scheduled collectors per provider/location, store normalized snapshots and provider SKU identities, and define refresh cadence from volatility and request limits. For many users, live browser work leaves the request path: a worker queue runs rate-limited collectors with retries/backoff, monitoring, and selector-change alerts; normalized data goes to a database plus search index/cache; a stateless comparison API serves the frontend. This separates user traffic from marketplace automation, prevents browser startup per request, supports horizontal scaling, and allows stale-but-marked results during provider outages. The current adapters and normalized model remain useful boundaries, while in-memory caching becomes shared Redis and one-process logs become structured metrics/traces.
+

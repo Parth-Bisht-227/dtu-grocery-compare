@@ -1,0 +1,20 @@
+# Local scratch work and environments
+_scratch/
+.venv/
+
+# Python and test caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local app/browser state
+.state/
+.streamlit/
+*_state.json
+*_state_probe.json
+
+# Defensive exclusions if debug artifacts are created outside _scratch
+*_debug.html
+*_debug.png
+*_live.html
+*_live.png
