@@ -86,6 +86,16 @@ def parse_quantity(raw: str) -> NormalizedQuantity | None:
     return NormalizedQuantity(value=value, unit=unit)
 
 
+def extract_quantity(text: str) -> NormalizedQuantity | None:
+    """Extract one explicit supported quantity, without guessing ambiguity."""
+
+    normalized = unicodedata.normalize("NFKC", text)
+    matches = list(_INLINE_QUANTITY_RE.finditer(normalized))
+    if len(matches) != 1:
+        return None
+    return parse_quantity(matches[0].group(0))
+
+
 def normalize_title(title: str) -> str:
     """Normalize formatting while retaining product/variant meaning."""
 

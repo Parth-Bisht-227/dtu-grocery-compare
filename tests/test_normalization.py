@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import pytest
 
-from matching.normalize import normalize_title, parse_quantity
+from matching.normalize import extract_quantity, normalize_title, parse_quantity
 
 
 @pytest.mark.parametrize(
@@ -32,6 +32,42 @@ def test_parse_quantity(raw, value, unit, pack_count, total, explicit_pack):
 
 def test_unknown_quantity_is_not_guessed():
     assert parse_quantity("family pack") is None
+
+
+@pytest.mark.parametrize(
+    ("query", "value", "unit", "pack_count", "total"),
+    [
+        ("Surf Excel Matic Liquid 1L", Decimal("1000"), "ml", 1, Decimal("1000")),
+        ("Amul Butter 500 g", Decimal("500"), "g", 1, Decimal("500")),
+        ("Dettol Soap 4 x 100 g", Decimal("100"), "g", 4, Decimal("400")),
+        ("Eggs 12 pcs", Decimal("12"), "pcs", 1, Decimal("12")),
+    ],
+)
+def test_extract_explicit_query_quantity(query, value, unit, pack_count, total):
+    quantity = extract_quantity(query)
+
+    assert quantity is not None
+    assert quantity.value == value
+    assert quantity.unit == unit
+    assert quantity.pack_count == pack_count
+    assert quantity.total_value == total
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Maggi 2-minute noodles",
+        "Nivea Deodorant 48h",
+        "Dettol 3X protection",
+        "Model X200 version 2",
+    ],
+)
+def test_query_quantity_ignores_unrelated_numbers(query):
+    assert extract_quantity(query) is None
+
+
+def test_ambiguous_query_quantity_is_not_guessed():
+    assert extract_quantity("Coca Cola 1L or 2L") is None
 
 
 def test_title_normalization_preserves_variant_words_but_removes_formatting():

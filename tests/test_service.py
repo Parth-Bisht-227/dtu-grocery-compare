@@ -138,7 +138,7 @@ def test_invalid_query_is_rejected_before_calling_providers(query):
     assert not provider.calls
 
 
-def test_matches_are_ranked_by_query_relevance_without_changing_raw_order():
+def test_irrelevant_matches_are_filtered_without_changing_raw_order():
     blinkit_orange = product(
         Provider.BLINKIT, "Real Fruit Power Orange Juice"
     )
@@ -161,11 +161,10 @@ def test_matches_are_ranked_by_query_relevance_without_changing_raw_order():
     outcome = service.search("Real Mixed Fruit Juice 1L")
 
     assert outcome.products[Provider.BLINKIT][0] == blinkit_orange
-    assert outcome.matches[0].blinkit == blinkit_mixed
-    assert outcome.matches[1].blinkit == blinkit_orange
+    assert [match.blinkit for match in outcome.matches] == [blinkit_mixed]
 
 
-def test_unmatched_products_are_ranked_by_query_relevance():
+def test_unmatched_products_are_filtered_and_ranked_by_query_relevance():
     orange = product(Provider.BLINKIT, "Real Fruit Power Orange Juice")
     mixed = product(Provider.BLINKIT, "Real Fruit Power Mixed Fruit Juice")
     service = ComparisonService(
@@ -177,5 +176,237 @@ def test_unmatched_products_are_ranked_by_query_relevance():
 
     outcome = service.search("Real Mixed Fruit Juice")
 
-    assert outcome.unmatched[Provider.BLINKIT] == [mixed, orange]
+    assert outcome.unmatched[Provider.BLINKIT] == [mixed]
     assert outcome.products[Provider.BLINKIT] == [orange, mixed]
+
+
+def test_brand_anchor_removes_irrelevant_exact_matches():
+    blinkit = [
+        product(
+            Provider.BLINKIT,
+            "Nutralite DoodhShakti Salted Butter",
+            "500 g",
+        ),
+        product(Provider.BLINKIT, "Harvest Gold White Bread", "350 g"),
+        product(Provider.BLINKIT, "Amul Pasteurised Butter", "200 g"),
+    ]
+    instamart = [
+        product(
+            Provider.INSTAMART,
+            "Nutralite DoodhShakti Salted Butter",
+            "500 g",
+        ),
+        product(Provider.INSTAMART, "Harvest Gold White Bread", "350 g"),
+        product(Provider.INSTAMART, "Amul Pasteurised Butter", "200 g"),
+    ]
+    outcome = ComparisonService(
+        [
+            FakeProvider(Provider.BLINKIT, blinkit),
+            FakeProvider(Provider.INSTAMART, instamart),
+        ]
+    ).search("Amul Butter")
+
+    assert [match.blinkit.title for match in outcome.matches] == [
+        "Amul Pasteurised Butter"
+    ]
+
+
+def test_query_modifier_removes_womens_and_cross_brand_matches():
+    blinkit = [
+        product(
+            Provider.BLINKIT,
+            "Nivea Men Deep Impact Freshness Deodorant Roll On",
+            "50 ml",
+        ),
+        product(
+            Provider.BLINKIT,
+            "Nivea Pearl & Beauty Women's Deodorant",
+            "150 ml",
+        ),
+        product(
+            Provider.BLINKIT,
+            "Bombay Shaving Company Desire Men's Deodorant",
+            "200 ml",
+        ),
+    ]
+    instamart = [
+        product(
+            Provider.INSTAMART,
+            "Nivea Men Deep Impact Freshness Deodorant Roll On",
+            "50 ml",
+        ),
+        product(
+            Provider.INSTAMART,
+            "Nivea Pearl & Beauty Women's Deodorant",
+            "150 ml",
+        ),
+        product(
+            Provider.INSTAMART,
+            "Bombay Shaving Company Desire Men's Deodorant",
+            "200 ml",
+        ),
+    ]
+    outcome = ComparisonService(
+        [
+            FakeProvider(Provider.BLINKIT, blinkit),
+            FakeProvider(Provider.INSTAMART, instamart),
+        ]
+    ).search("Nivea Deodorant Men")
+
+    assert [match.blinkit.title for match in outcome.matches] == [
+        "Nivea Men Deep Impact Freshness Deodorant Roll On"
+    ]
+
+
+def test_matched_pair_can_supply_query_words_across_provider_titles():
+    blinkit = product(
+        Provider.BLINKIT,
+        "Dettol Original Bathing Bar",
+        "100 g",
+    )
+    instamart = product(
+        Provider.INSTAMART,
+        "Dettol Original Bathing Bar Soap",
+        "100 g",
+    )
+    outcome = ComparisonService(
+        [
+            FakeProvider(Provider.BLINKIT, [blinkit]),
+            FakeProvider(Provider.INSTAMART, [instamart]),
+        ]
+    ).search("Dettol Soap")
+
+    assert len(outcome.matches) == 1
+
+
+def test_no_observed_query_token_falls_back_instead_of_hiding_aliases():
+    blinkit = product(Provider.BLINKIT, "Coca-Cola Soft Drink", "750 ml")
+    outcome = ComparisonService(
+        [
+            FakeProvider(Provider.BLINKIT, [blinkit]),
+            FakeProvider(Provider.INSTAMART),
+        ]
+    ).search("Coke")
+
+    assert outcome.unmatched[Provider.BLINKIT] == [blinkit]
+
+
+def test_irrelevant_unmatched_products_are_removed():
+    relevant = product(
+        Provider.BLINKIT,
+        "Nivea Men Fresh Active Deodorant Roll On",
+        "50 ml",
+    )
+    womens = product(
+        Provider.BLINKIT,
+        "Nivea Pearl & Beauty Women's Deodorant",
+        "150 ml",
+    )
+    other_brand = product(
+        Provider.BLINKIT,
+        "Park Avenue Trance Perfume Spray for Men",
+        "135 ml",
+    )
+    outcome = ComparisonService(
+        [
+            FakeProvider(
+                Provider.BLINKIT,
+                [womens, other_brand, relevant],
+            ),
+            FakeProvider(Provider.INSTAMART),
+        ]
+    ).search("Nivea Deodorant Men")
+
+    assert outcome.unmatched[Provider.BLINKIT] == [relevant]
+
+
+def test_query_quantity_keeps_only_the_requested_amount():
+    one_litre = product(
+        Provider.BLINKIT,
+        "Surf Excel Matic Front Load Liquid Detergent",
+        "1 ltr",
+    )
+    two_litres = product(
+        Provider.BLINKIT,
+        "Surf Excel Matic Front Load Liquid Detergent",
+        "2 ltr",
+    )
+    wrong_dimension = product(
+        Provider.BLINKIT,
+        "Surf Excel Matic Front Load Liquid Detergent",
+        "2000 g",
+    )
+    missing_quantity = product(
+        Provider.BLINKIT,
+        "Surf Excel Matic Front Load Liquid Detergent",
+        "family pack",
+    )
+    outcome = ComparisonService(
+        [
+            FakeProvider(
+                Provider.BLINKIT,
+                [two_litres, wrong_dimension, missing_quantity, one_litre],
+            ),
+            FakeProvider(Provider.INSTAMART),
+        ]
+    ).search("Surf Excel Matic Liquid 1L")
+
+    assert outcome.unmatched[Provider.BLINKIT] == [one_litre]
+
+
+def test_query_quantity_allows_equal_total_single_and_multipack_results():
+    single_pack = product(
+        Provider.BLINKIT,
+        "Dettol Original Bathing Bar Soap",
+        "400 g",
+    )
+    multi_pack = product(
+        Provider.BLINKIT,
+        "Dettol Original Bathing Bar Soap",
+        "4 x 100 g",
+    )
+    outcome = ComparisonService(
+        [
+            FakeProvider(Provider.BLINKIT, [single_pack, multi_pack]),
+            FakeProvider(Provider.INSTAMART),
+        ]
+    ).search("Dettol Soap 400g")
+
+    assert outcome.unmatched[Provider.BLINKIT] == [single_pack, multi_pack]
+
+
+def test_query_quantity_filters_existing_exact_sku_matches():
+    blinkit_one_litre = product(
+        Provider.BLINKIT,
+        "Surf Excel Matic Front Load Liquid Detergent",
+        "1 ltr",
+    )
+    instamart_one_litre = product(
+        Provider.INSTAMART,
+        "Surf Excel Matic Front Load Liquid Detergent",
+        "1000 ml",
+    )
+    blinkit_two_litres = product(
+        Provider.BLINKIT,
+        "Surf Excel Matic Top Load Liquid Detergent",
+        "2 ltr",
+    )
+    instamart_two_litres = product(
+        Provider.INSTAMART,
+        "Surf Excel Matic Top Load Liquid Detergent",
+        "2000 ml",
+    )
+    outcome = ComparisonService(
+        [
+            FakeProvider(
+                Provider.BLINKIT,
+                [blinkit_two_litres, blinkit_one_litre],
+            ),
+            FakeProvider(
+                Provider.INSTAMART,
+                [instamart_two_litres, instamart_one_litre],
+            ),
+        ]
+    ).search("Surf Excel Matic Liquid 1L")
+
+    assert [match.blinkit for match in outcome.matches] == [blinkit_one_litre]
