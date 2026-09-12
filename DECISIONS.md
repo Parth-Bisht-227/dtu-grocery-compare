@@ -1,37 +1,35 @@
-# Engineering Decision Log (interview notes)
+# Engineering Decision Log
 
-## Why Playwright, not requests + BeautifulSoup?
+This file records the main implementation choices in compact form. See [Interview_prep.md](Interview_prep.md) for the detailed walkthrough.
 
-The prices are location-dependent and the sites render/interact through JavaScript. `requests` retrieves HTTP responses but does not execute that browser behavior; BeautifulSoup parses static HTML. Playwright drives the same public desktop UI a user sees and lets us wait for actual rendered cards.
+## Public browser automation
 
-## Why Playwright, not Selenium?
+Both marketplaces depend on JavaScript-rendered, location-specific UI. Playwright drives the same public desktop controls a user sees; `requests` and BeautifulSoup would not execute the location/search flow. Selenium was viable, but Playwright's locators, waits, and contexts made the already-proven flows concise.
 
-Both are viable. Playwright was already installed and proved against Blinkit. Its browser contexts, auto-waiting locators, and `storage_state` API make this particular stateful UI task concise. This is a delivery choice, not a claim that Selenium cannot solve it.
+## Fresh context instead of saved state
 
-## DOM, locators, and selector durability
+Every uncached provider search creates an isolated context and establishes DTU through the UI. No cookies, `storage_state`, or persistent local profile is shipped. This costs several seconds but gives the evaluator a reproducible fresh-machine flow. Blinkit defaults to headed mode because tested headless sessions were blocked; Instamart defaults to headless.
 
-The DOM is the browser's live tree of page elements. A locator is a query that finds elements in that tree and waits/retries around actions. Instamart exposes `data-testid="item-collection-card-full"`; Blinkit cards have a runtime numeric ID plus `role="button"`. We use those card boundaries and parse their visible text instead of depending on generated CSS classes. DOM changes can still break any scraper, so provider failures are isolated and selectors are kept in provider modules.
+## Provider adapters and normalized models
 
-## Browser context, cookies, and storage state
+Each adapter owns its selectors, location flow, and card extraction, then returns the same frozen Pydantic `Product` model. This keeps website changes out of matching, service, tests, and UI, while Pydantic validates the boundary between messy external text and deterministic logic.
 
-A browser context is an isolated browser session—roughly an incognito profile—with its own cookies and local/session storage. Location choices are commonly stored there. Playwright `storage_state` serializes cookies and localStorage so a DTU-configured session can be reused without repeating the location flow. The app creates that state through the normal UI on a fresh machine, stores it only in ignored `.state/` files, and never logs in.
+## Structured quantity before title similarity
 
-## Why normalize before matching?
+Quantities are normalized to `g`, `ml`, `pcs`, or `combo`. Equivalent single quantities such as `0.5 kg` and `500 g` can match. Multipack structure remains explicit because `150 g` and `3 x 50 g` are different sellable SKUs. Missing quantities are not guessed.
 
-Providers disagree on spelling and units. Converting `0.5 kg` and `500gm` to a shared `500 g` representation lets matching enforce real SKU constraints before considering wording. Explicit packs remain explicit because `4 x 70 g` and one `280 g` package can have the same total weight but be different sellable units.
+## Generic conservative SKU matching
 
-## Why provider adapters?
+There is no brand/flavour dictionary, LLM, or embedding dependency. Titles retain potentially defining words, and tokens receive IDF-like weights from the current combined result set. Symmetric reordered similarity, weighted Dice overlap, and minimum coverage produce a score. A pair must be mutual best, score at least 76, and lead alternatives by eight points on both sides. False negatives are preferred because unmatched listings remain visible, while a false positive can misstate which store is cheaper.
 
-Marketplace markup changes independently. Each adapter owns navigation and extraction, then emits the same `Product` model. Matching, caching, tests, and UI therefore do not change when one provider changes its DOM.
+## Separate query relevance
 
-## Why not only fuzzy-match titles, or use an LLM?
+SKU identity and search relevance are different decisions. After matching, a corpus-derived query anchor and weighted token coverage remove unrelated valid matches. When no query token appears in the corpus, the system preserves results rather than introducing hardcoded aliases. One explicit query quantity gates candidates by canonical unit and total; it does not relax exact SKU pack rules.
 
-Fuzzy similarity measures wording, not identity: “Maggi 280 g” and “Maggi 420 g” can look nearly identical while being different SKUs. Hard quantity/brand/variant gates run first. An LLM would add latency, cost, nondeterminism, and another failure mode to a small structured problem. It could later help classify ambiguous unmatched pairs, but should not silently decide price equivalence.
+## Short cache and failure isolation
 
-## Why cache and isolate failures?
+The service runs independent provider searches concurrently. A three-minute in-memory success cache limits repeated traffic while keeping prices reasonably fresh; failures are cached for 30 seconds. One provider exception becomes a UI warning and does not discard the other provider's results.
 
-Prices do not need a new marketplace request on every UI rerun. A three-minute success TTL limits traffic while staying reasonably fresh; a short failure TTL avoids hammering an unhealthy provider. Independent provider futures mean one timeout becomes a warning, not a blank app or HTTP 500.
+## Deliberate MVP omissions
 
-## Deadline shortcuts
-
-The MVP launches a browser per uncached provider search, targets one location, uses an in-memory cache, and has a hand-built variant vocabulary. These are explicit single-user/local-assessment trade-offs. Production would use background collectors, persistent SKU mappings, shared storage/cache, rate limits, retries, monitoring, and per-location inventory keys.
+The project fixes location to DTU, launches browsers for uncached searches, stores no history, and has no database, login, deployment, unit-price comparison, or production monitoring. At scale, background collectors would populate timestamped provider/location records, stable product mappings, a database/search index, and shared cache behind a stateless API.

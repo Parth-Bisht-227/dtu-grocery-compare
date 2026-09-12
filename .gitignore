@@ -18,3 +18,10 @@ __pycache__/
 *_debug.png
 *_live.html
 *_live.png
+
+# Local interview/revision notes (not part of the submission)
+Interview_prep.md
+
+# Generated deliverables and temporary render files
+output/
+tmp/

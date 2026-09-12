@@ -320,7 +320,7 @@ def test_irrelevant_unmatched_products_are_removed():
     assert outcome.unmatched[Provider.BLINKIT] == [relevant]
 
 
-def test_query_quantity_keeps_only_the_requested_amount():
+def test_query_quantity_prioritizes_requested_amount_in_secondary_results():
     one_litre = product(
         Provider.BLINKIT,
         "Surf Excel Matic Front Load Liquid Detergent",
@@ -351,7 +351,12 @@ def test_query_quantity_keeps_only_the_requested_amount():
         ]
     ).search("Surf Excel Matic Liquid 1L")
 
-    assert outcome.unmatched[Provider.BLINKIT] == [one_litre]
+    assert outcome.unmatched[Provider.BLINKIT] == [
+        one_litre,
+        two_litres,
+        wrong_dimension,
+        missing_quantity,
+    ]
 
 
 def test_query_quantity_allows_equal_total_single_and_multipack_results():
@@ -410,3 +415,39 @@ def test_query_quantity_filters_existing_exact_sku_matches():
     ).search("Surf Excel Matic Liquid 1L")
 
     assert [match.blinkit for match in outcome.matches] == [blinkit_one_litre]
+    assert outcome.unmatched[Provider.BLINKIT] == [blinkit_two_litres]
+    assert outcome.unmatched[Provider.INSTAMART] == [instamart_two_litres]
+
+
+def test_quantity_query_keeps_other_matched_sizes_as_secondary_results():
+    blinkit_58g = product(
+        Provider.BLINKIT,
+        "Lays Magic Masala Potato Chips",
+        "58 g",
+    )
+    instamart_58g = product(
+        Provider.INSTAMART,
+        "Lays Magic Masala Potato Chips",
+        "58 g",
+    )
+    blinkit_90g = product(
+        Provider.BLINKIT,
+        "Lays Magic Masala Potato Chips",
+        "90 g",
+    )
+    instamart_90g = product(
+        Provider.INSTAMART,
+        "Lays Magic Masala Potato Chips",
+        "90 g",
+    )
+
+    outcome = ComparisonService(
+        [
+            FakeProvider(Provider.BLINKIT, [blinkit_90g, blinkit_58g]),
+            FakeProvider(Provider.INSTAMART, [instamart_90g, instamart_58g]),
+        ]
+    ).search("Lays 58 g")
+
+    assert [match.blinkit for match in outcome.matches] == [blinkit_58g]
+    assert outcome.unmatched[Provider.BLINKIT] == [blinkit_90g]
+    assert outcome.unmatched[Provider.INSTAMART] == [instamart_90g]

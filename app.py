@@ -7,6 +7,7 @@ from html import escape
 
 import streamlit as st
 
+from matching.normalize import extract_quantity
 from models import Product, ProductMatch, Provider, SearchOutcome
 from providers import BlinkitProvider, InstamartProvider
 from service import ComparisonService
@@ -415,7 +416,12 @@ def render_outcome(outcome: SearchOutcome) -> None:
     blinkit_unmatched = outcome.unmatched.get(Provider.BLINKIT, [])
     instamart_unmatched = outcome.unmatched.get(Provider.INSTAMART, [])
     if blinkit_unmatched or instamart_unmatched or outcome.errors:
-        st.header("Other search results")
+        secondary_heading = (
+            "Other sizes and search results"
+            if extract_quantity(outcome.query) is not None
+            else "Other search results"
+        )
+        st.header(secondary_heading)
         blinkit_column, instamart_column = st.columns(2)
         with blinkit_column:
             render_other_results(Provider.BLINKIT, blinkit_unmatched)

@@ -156,45 +156,66 @@ def _relevance_evidence(
 def filter_and_rank_products(
     context: RelevanceContext,
     products: list[Product],
+    *,
+    enforce_query_quantity: bool = True,
 ) -> list[Product]:
     """Keep query-eligible listings and return a stable relevance ordering."""
 
-    ranked: list[tuple[float, int, Product]] = []
+    ranked: list[tuple[int, float, int, Product]] = []
     for index, product in enumerate(products):
-        if not _matches_query_quantity(context.query_quantity, product.quantity):
+        quantity_matches = _matches_query_quantity(
+            context.query_quantity,
+            product.quantity,
+        )
+        if enforce_query_quantity and not quantity_matches:
             continue
         accepted, score = _relevance_evidence(context, (product.title,))
         if accepted:
-            ranked.append((score, index, product))
+            exact_quantity = int(
+                context.query_quantity is not None and quantity_matches
+            )
+            ranked.append((exact_quantity, score, index, product))
     return [
         product
-        for _, _, product in sorted(ranked, key=lambda item: (-item[0], item[1]))
+        for _, _, _, product in sorted(
+            ranked,
+            key=lambda item: (-item[0], -item[1], item[2]),
+        )
     ]
 
 
 def filter_and_rank_matches(
     context: RelevanceContext,
     matches: list[ProductMatch],
+    *,
+    enforce_query_quantity: bool = True,
 ) -> list[ProductMatch]:
     """Keep query-eligible comparisons and return a stable relevance ordering."""
 
-    ranked: list[tuple[float, int, ProductMatch]] = []
+    ranked: list[tuple[int, float, int, ProductMatch]] = []
     for index, match in enumerate(matches):
-        if not (
+        quantity_matches = (
             _matches_query_quantity(context.query_quantity, match.blinkit.quantity)
             and _matches_query_quantity(
                 context.query_quantity,
                 match.instamart.quantity,
             )
-        ):
+        )
+        if enforce_query_quantity and not quantity_matches:
             continue
         accepted, score = _relevance_evidence(
             context,
             (match.blinkit.title, match.instamart.title),
         )
         if accepted:
-            ranked.append((score, index, match))
+            exact_quantity = int(
+                context.query_quantity is not None and quantity_matches
+            )
+            ranked.append((exact_quantity, score, index, match))
     return [
         match
-        for _, _, match in sorted(ranked, key=lambda item: (-item[0], item[1]))
+        for _, _, _, match in sorted(
+            ranked,
+            key=lambda item: (-item[0], -item[1], item[2]),
+        )
     ]

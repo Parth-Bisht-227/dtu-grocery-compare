@@ -100,7 +100,7 @@ class ComparisonService:
                         ),
                     )
 
-        matches, unmatched = match_products(
+        all_matches, unmatched = match_products(
             products.get(Provider.BLINKIT, []),
             products.get(Provider.INSTAMART, []),
         )
@@ -112,9 +112,31 @@ class ComparisonService:
                 for product in provider_products
             ],
         )
-        matches = filter_and_rank_matches(relevance, matches)
+        matches = filter_and_rank_matches(relevance, all_matches)
+
+        # Exact query quantity is required for primary comparisons. Matches of
+        # other sizes remain useful browsing alternatives, so return their two
+        # listings to the secondary result lanes instead of dropping them.
+        relevant_matches_all_sizes = filter_and_rank_matches(
+            relevance,
+            all_matches,
+            enforce_query_quantity=False,
+        )
+        hidden_size_matches = [
+            match
+            for match in relevant_matches_all_sizes
+            if match not in matches
+        ]
+        for match in hidden_size_matches:
+            unmatched.setdefault(Provider.BLINKIT, []).append(match.blinkit)
+            unmatched.setdefault(Provider.INSTAMART, []).append(match.instamart)
+
         unmatched = {
-            provider: filter_and_rank_products(relevance, provider_products)
+            provider: filter_and_rank_products(
+                relevance,
+                provider_products,
+                enforce_query_quantity=False,
+            )
             for provider, provider_products in unmatched.items()
         }
         return SearchOutcome(
