@@ -1,8 +1,10 @@
 # The Great DTU Grocery Race
 
-A local web app that searches Blinkit and Instamart in one request, fixes delivery to Delhi Technological University (DTU), and presents conservative like-for-like grocery price comparisons.
+A local grocery price-comparison mini project that searches Blinkit and Instamart in one request, fixes delivery to Delhi Technological University (DTU), and presents conservative like-for-like comparisons.
 
-The submission intentionally optimizes for correctness and explainability over maximum match count. When two listings might be different sellable SKUs, the app keeps them separate under **Other search results** instead of forcing a potentially misleading comparison.
+I originally built the project as a time-boxed engineering take-home during a hiring process. It has since become a compact exploration of browser automation, messy marketplace data, deterministic entity resolution, and resilient application design.
+
+The guiding principle is correctness and explainability rather than maximizing the number of matches. When two listings might represent different sellable SKUs, the app keeps them separate under **Other search results** instead of forcing a potentially misleading price comparison.
 
 ## Screenshots
 
@@ -119,7 +121,7 @@ Live marketplace tests are intentionally excluded from `pytest`: availability, l
 - Query relevance is lightweight lexical filtering, not a full semantic search engine. If no query token is observed in the returned corpus, results are preserved rather than aggressively filtered; this can help with aliases and alternate marketplace naming.
 - Unit-price comparison across different pack structures is intentionally out of scope because it requires a second, looser product-family decision.
 - DOM changes, network timeouts, provider blocks, or location-flow changes can break an adapter. Failures are isolated so the other provider can still return results.
-- This is a local assessment MVP and should not be publicly deployed or used for high-volume collection.
+- This is a local mini project intended for demonstration and learning, not public deployment or high-volume marketplace collection.
 
 ## Project structure
 
@@ -132,7 +134,7 @@ providers/                Marketplace navigation and card parsing
 matching/normalize.py     Title and quantity normalization
 matching/matcher.py       Conservative cross-provider SKU resolution
 tests/                    Offline deterministic tests
-DESIGN.md                 One-page submission design note source
+DESIGN.md                 Concise architecture and design rationale
 ```
 
-See [DESIGN.md](DESIGN.md) for the submission design note.
+See [DESIGN.md](DESIGN.md) for the architecture, matching rationale, known failure cases, and scaling approach.
