@@ -4,6 +4,20 @@ A local web app that searches Blinkit and Instamart in one request, fixes delive
 
 The submission intentionally optimizes for correctness and explainability over maximum match count. When two listings might be different sellable SKUs, the app keeps them separate under **Other search results** instead of forcing a potentially misleading comparison.
 
+## Screenshots
+
+### Confident same-SKU price comparison
+
+The app shows the original titles from both marketplaces, normalized pack size, current prices, and the exact saving without exposing internal matching scores.
+
+![Nivea deodorant price comparison between Blinkit and Instamart](docs/screenshots/nivea-price-comparison.png)
+
+### Conservative handling of ambiguous products
+
+When descriptions or pack structures do not align confidently, the app avoids a potentially misleading comparison and keeps the listings under the provider-specific search results.
+
+![Dettol soap results kept separate because no confident same-SKU comparison was found](docs/screenshots/dettol-conservative-results.png)
+
 ## What the app does
 
 1. Accepts a grocery query such as `Maggi`, `Amul butter`, `Coke`, or `Surf Excel Matic Liquid 1L`.
@@ -90,7 +104,7 @@ All normal tests are offline and do not contact either marketplace:
 python -m pytest -q
 ```
 
-Current result: **62 passing tests**. Coverage includes card-text parsing, quantity and unit normalization, strict pack compatibility, title scoring, deduplication, mutual-best ambiguity handling, query relevance, explicit query quantities, caching, and one-provider failure isolation.
+Current result: **63 passing tests**. Coverage includes card-text parsing, quantity and unit normalization, strict pack compatibility, title scoring, deduplication, mutual-best ambiguity handling, query relevance, explicit query quantities, caching, and one-provider failure isolation.
 
 Live marketplace tests are intentionally excluded from `pytest`: availability, latency, anti-automation behavior, and DOM markup are external and volatile.
 
